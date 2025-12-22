@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["AiPsfDeterminerConfig", "AiPsfDeterminerTask"]
+__all__ = ["AipsfPsfDeterminerTask", "AipsfPsfDeterminerConfig"]
 
 import numpy as np
 import piff
@@ -34,7 +34,7 @@ import lsst.pex.config as pexConfig
 import lsst.meas.algorithms as measAlg
 from lsst.meas.algorithms.psfDeterminer import BasePsfDeterminerTask
 from lsst.pipe.base import AlgorithmError
-from .aiPsf import AiPsf
+from .aipsfPsf import AipsfPsf
 from .wcs_wrapper import CelestialWcsWrapper, UVWcsWrapper
 
 
@@ -72,7 +72,7 @@ def _validateGalsimInterpolant(name: str) -> bool:
     return name in names
 
 
-class AiPsfTooFewGoodStarsError(AlgorithmError):
+class AipsfTooFewGoodStarsError(AlgorithmError):
     """Raised if too few good stars are available for PSF determination.
 
     Parameters
@@ -109,7 +109,7 @@ class AiPsfTooFewGoodStarsError(AlgorithmError):
         }
 
 
-class AiPsfDeterminerConfig(BasePsfDeterminerTask.ConfigClass):
+class AipsfPsfDeterminerConfig(BasePsfDeterminerTask.ConfigClass):
     spatialOrderPerBand = pexConfig.DictField(
         doc="Per-band spatial order for PSF kernel creation. "
         "Ignored if piffPsfConfigYaml is set.",
@@ -409,11 +409,11 @@ def _computeWeightAlternative(maskedImage, maxSNR):
     return weightArr
 
 
-class AiPsfDeterminerTask(BasePsfDeterminerTask):
+class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
     """A measurePsfTask PSF estimator using Piff as the implementation.
     """
-    ConfigClass = AiPsfDeterminerConfig
-    _DefaultName = "psfDeterminer.AiPsfDeterminer"
+    ConfigClass = AipsfPsfDeterminerConfig
+    _DefaultName = "psfDeterminer.Aipsf"
 
     def __init__(self, config, schema=None, **kwds):
         BasePsfDeterminerTask.__init__(self, config, schema=schema, **kwds)
@@ -447,11 +447,12 @@ class AiPsfDeterminerTask(BasePsfDeterminerTask):
 
         Returns
         -------
-        psf : `lsst.meas.extensions.aipsf.AiPsf`
+        psf : `lsst.meas.extensions.aipsf.AipsfPsf`
            The measured PSF model.
         psfCellSet : `None`
            Unused by this PsfDeterminer.
         """
+        print("PFFF: This is happening, I am using AI-PSF")
         psfCandidateList = self.downsampleCandidates(psfCandidateList)
 
         if self.config.stampSize:
@@ -605,7 +606,7 @@ class AiPsfDeterminerTask(BasePsfDeterminerTask):
                     # PSF to be average of few stars.
                     piffConfig['max_iter'] = 1
                 else:
-                    raise AiPsfTooFewGoodStarsError(
+                    raise AipsfTooFewGoodStarsError(
                         num_good_stars=len(stars),
                         minimum_dof=threshold,
                         poly_ndim=piffConfig['interp']['order'],
@@ -633,7 +634,7 @@ class AiPsfDeterminerTask(BasePsfDeterminerTask):
                     piffResult.fit(stars, wcs, pointing, logger=self.piffLogger)
                     nUsedStars = len(stars)
                 else:
-                    raise AiPsfTooFewGoodStarsError(
+                    raise AipsfTooFewGoodStarsError(
                         num_good_stars=nUsedStars,
                         minimum_dof=threshold,
                         poly_ndim=piffConfig['interp']['order'],
@@ -673,7 +674,7 @@ class AiPsfDeterminerTask(BasePsfDeterminerTask):
                 del star.data.weight
                 del star.data.orig_weight
 
-        return AiPsf(drawSize, drawSize, piffResult), None
+        return AipsfPsf(drawSize, drawSize, piffResult), None
 
 
-measAlg.psfDeterminerRegistry.register("aipsfdeterminer", AiPsfDeterminerTask)
+measAlg.psfDeterminerRegistry.register("aipsf", AipsfPsfDeterminerTask)

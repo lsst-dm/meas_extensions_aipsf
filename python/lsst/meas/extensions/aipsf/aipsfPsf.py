@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["AiPsf"]
+__all__ = ["AipsfPsf"]
 
 import pickle
 import piff
@@ -32,10 +32,10 @@ from lsst.geom import Box2I, Point2I, Extent2I, Point2D
 import logging
 
 
-class AiPsf(ImagePsf):
+class AipsfPsf(ImagePsf):
     _factory = StorableHelperFactory(
-        "lsst.meas.extensions.aipsf.aiPsf",
-        "AiPsf"
+        "lsst.meas.extensions.aipsf.aipsfPsf",
+        "AipsfPsf"
     )
 
     def __init__(self, width, height, piffResult, log=None):
@@ -71,10 +71,10 @@ class AiPsf(ImagePsf):
         return True
 
     def _getPersistenceName(self):
-        return "AiPsf"
+        return "AipsfPsf"
 
     def _getPythonModule(self):
-        return "lsst.meas.extensions.aipsf.aiPsf"
+        return "lsst.meas.extensions.aipsf.AipsfPsf"
 
     def _write(self):
         return pickle.dumps((self.width, self.height, self._piffResult))
@@ -90,16 +90,16 @@ class AiPsf(ImagePsf):
                 piffResult.model._num = None
                 piffResult.model._fit_flux = None
                 piffResult.interp._num = None
-        return AiPsf(width, height, piffResult)
+        return AipsfPsf(width, height, piffResult)
 
     # ImagePsf overrides
 
     def __deepcopy__(self, meta=None):
-        return AiPsf(self.width, self.height, self._piffResult)
+        return AipsfPsf(self.width, self.height, self._piffResult)
 
     def resized(self, width, height):
         assert width == height
-        return AiPsf(width, height, self._piffResult)
+        return AipsfPsf(width, height, self._piffResult)
 
     def _doComputeImage(self, position, color):
         return self._doImage(position, center=None, color=color)
