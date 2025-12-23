@@ -240,6 +240,18 @@ class AipsfPsfDeterminerConfig(BasePsfDeterminerTask.ConfigClass):
         default=None,
         optional=True,
     )
+    writeTrainingSet = pexConfig.Field[bool](
+        doc="write training set for a learned PSF model.",
+        default=False,
+    )
+    trainingSetLocation = pexConfig.Field[str](
+        doc="Where to write training set for a learned PSF model.",
+        default="",
+    )
+    cameraModelTrainingSet = pexConfig.Field[str](
+        doc="which camera is used for the learned PSF model.",
+        default="LSSTCam",
+    )
 
     def setDefaults(self):
         super().setDefaults()
@@ -653,6 +665,74 @@ class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
                 starId = source.getId()
                 if starId in used_image_starId:
                     source.set(flagKey, True)
+
+        if self.config.writeTrainingSet:
+
+            dic = {}
+
+            import lsst.afw.cameraGeom as cameraGeom
+            from lsst.obs.lsst import LsstComCam, LsstCam
+            from lsst.obs.subaru import HyperSuprimeCam
+            from lsst.geom import Point2D
+            import pickle
+            import os
+
+            if self.config.cameraModelTrainingSet not in ["LSSTComCam", "LSSTCam", "HyperSuprimeCam"]:
+                raise ValueError('work only for LSST cameras and HSC')
+            if self.config.cameraModelTrainingSet == "LSSTComCam":
+                camera = LsstComCam.getCamera()
+            if self.config.cameraModelTrainingSet == "LSSTCam":
+                camera = LsstCam.getCamera()
+            if self.config.cameraModelTrainingSet ==  "HyperSuprimeCam":
+                hsc = HyperSuprimeCam()
+                camera = hsc.getCamera()
+
+            def _pixel_to_focal(x, y, det):
+                tx = det.getTransform(cameraGeom.PIXELS, cameraGeom.FOCAL_PLANE)
+                fpx, fpy = tx.getMapping().applyForward(np.vstack((x, y)))
+                if self.config.cameraModelTrainingSet in ["LSSTComCam", "LSSTCam"]:
+                    return fpx.ravel()[0], fpy.ravel()[0]
+                if self.config.cameraModelTrainingSet in ["HyperSuprimeCam"]:
+                    return fpx, fpy
+
+            psfModel = AipsfPsf(drawSize, drawSize, piffResult)
+
+            detectorId = exposure.getDetector().getId()
+            visitId = exposure.getInfo().getVisitInfo().id
+            bandId = exposure.getInfo().getFilter().bandLabel
+
+            for s in piffResult.stars:
+                if not s.is_flagged and not s.is_reserve:
+                    starId = f"{visitId}_{detectorId}_{bandId}_{s.data.properties['starId']}"
+                    starPiff = piffResult.draw(s.x, s.y, stamp_size=drawSize, center=None)
+                    xFoV, yFoV = _pixel_to_focal(np.array([s.x]), np.array([s.y]), camera[detectorId])
+                    sumStar = np.sum(s.data.image.array)
+
+                    starToSave = s.data.image.array / sumStar
+                    starPiffToSave = starPiff.array
+
+                    dic[starId] = {"star": starToSave.astype(np.float32),
+                                   "weight": None,
+                                   "starPiff": starPiffToSave.astype(np.float32),
+                                   "xCCD": s.x,
+                                   "yCCD": s.y,
+                                   "xFoV": xFoV,
+                                   "yFoV": yFoV,
+                                   "sumStar": sumStar,
+                                   "detector": detectorId,
+                                   "visit": visitId,
+                                   "band": bandId}
+
+            pklName = os.path.join(self.config.trainingSetLocation, f"{visitId}_{detectorId}_{bandId}.pkl")
+            pklFile = open(pklName, 'wb')
+            pickle.dump(dic, pklFile)
+            pklFile.close()
+
+            raise AipsfTooFewGoodStarsError(
+                        num_good_stars=2,
+                        minimum_dof=15,
+                        poly_ndim=4,
+                    )
 
         if metadata is not None:
             metadata["spatialFitChi2"] = piffResult.chisq
