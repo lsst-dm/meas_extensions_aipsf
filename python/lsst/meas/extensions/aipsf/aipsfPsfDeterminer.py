@@ -754,7 +754,7 @@ class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
         if not self.config.debugStarData:
             for star in piffResult.stars:
                 # Remove large data objects from the stars
-                del star.fit.params
+                #del star.fit.params
                 del star.fit.params_var
                 del star.fit.A
                 del star.fit.b
