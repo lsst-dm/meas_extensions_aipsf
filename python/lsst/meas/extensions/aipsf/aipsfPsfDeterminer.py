@@ -572,17 +572,14 @@ class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
             piffConfig = {
                 'type': 'Simple',
                 'model': {
-                    'type': 'PixelGrid',
-                    'scale': scale * self.config.samplingSize,
-                    'size': self.config.modelSize,
-                    'interp': self.config.interpolant,
-                    'centered': self.config.piffPixelGridFitCenter,
+                    'type': 'AIPSF',
+                    'scale': scale,
+                    'device': 'cpu',
+                    'model_file': '/sdf/home/l/leget/rubin-user/lsst_dev/tickets/aipsf/Conv2dAutoEncoder.pth',
                 },
                 'interp': {
-                    'type': 'BasisPolynomial',
-                    'order': orders,
-                    'keys': keys,
-                    'solver': self.config.piffBasisPolynomialSolver,
+                    'type': 'Polynomial',
+                    'order': 4,
                 },
                 'outliers': {
                     'type': 'Chisq',
@@ -627,6 +624,17 @@ class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
         piffResult = piff.PSF.process(piffConfig)
         wcs = {0: gswcs}
 
+        #dicTest = {
+        #    'piffConfig': piffConfig,
+        #    'stars': stars,
+        #    'wcs': wcs,
+        #    'pointing': pointing,
+        #    }
+        #import pickle
+        #pklFile = open('/sdf/home/l/leget/rubin-user/lsst_dev/tickets/aipsf/test_piff.pkl', 'wb')
+        #pickle.dump(dicTest, pklFile)
+        #pklFile.close()
+
         piffResult.fit(stars, wcs, pointing, logger=self.piffLogger)
 
         nUsedStars = len([s for s in piffResult.stars if not s.is_flagged and not s.is_reserve])
@@ -652,7 +660,7 @@ class AipsfPsfDeterminerTask(BasePsfDeterminerTask):
                         poly_ndim=piffConfig['interp']['order'],
                     )
 
-        drawSize = 2*np.floor(0.5*stampSize/self.config.samplingSize) + 1
+        drawSize = stampSize #2*np.floor(0.5*stampSize/self.config.samplingSize) + 1
 
         used_image_starId = {s.data.properties['starId'] for s in piffResult.stars
                              if not s.is_flagged and not s.is_reserve}
